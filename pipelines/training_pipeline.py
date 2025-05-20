@@ -1,8 +1,9 @@
 from zenml import pipeline
 from steps.databaseConnect import connectTheDatabase
-from steps.ingest_data import process_data
+from steps.process_data import process_data
+from steps.embed_data import embed_data
 
-@pipeline
+@pipeline(enable_cache=False)
 def train_database_pipeline(
     password: str,
     database_name: str,
@@ -24,5 +25,5 @@ def train_database_pipeline(
         user=user
     )
     output = process_data(data=data)
-    # Access via output.tables and output.schemas
-    return output
+    embedding = embed_data(data=output)
+    
