@@ -1,27 +1,55 @@
 import logging
-
+import os
+from typing import Dict, Any, List
 from zenml import step
+from src.data_embedding import GoogleEmbedding
 
 @step
-
-def embed_data(data: dict) -> dict:
-    """Embed the processed data.
-    
-    Args:
-        data: Dictionary containing tables and their schemas
-        
-    Returns:
-        dict: Dictionary containing embedded data
-    """
+def embed_data(data: Dict[str, Any]) -> Dict[str, Any]:
+    """Embed the processed data and save to file."""
     try:
-        # Here you would implement your embedding logic
-        # For example, using a pre-trained model to embed the data
         logging.info("Embedding data...")
         
-        # Placeholder for embedding logic
-        embedded_data = {table: f"embedded_{table}" for table in data["tables"]}
+        # Initialize the embedding class
+        embedder = GoogleEmbedding()
         
-        return {"embedded_data": embedded_data}
+        # Embed the metadata
+        embedded_data = embedder.embed_data(data)
+        
+        # Save to pkl file
+        output_dir = os.path.join(os.getcwd(), "data", "embeddings")
+        os.makedirs(output_dir, exist_ok=True)
+        output_file = os.path.join(output_dir, "table_embeddings.pkl")
+        embedder.save_embeddings(embedded_data, output_file)
+        
+        logging.info(f"Successfully embedded data for {len(embedded_data)} tables")
+        return embedded_data
     except Exception as e:
         logging.error(f"Error embedding data: {e}")
+        raise e
+    
+@step
+def embedding_query(query: str) -> List[float]:
+    """
+    Embeds the query using the Google embedding strategy.
+    
+    Args:
+        query (str): The query to be embedded.
+        
+    Returns:
+        List[float]: The embedding vector for the query
+    """
+    try:
+        logging.info("Embedding query...")
+        
+        # Initialize the embedding class
+        embedder = GoogleEmbedding()
+        
+        # Embed the query
+        embedding = embedder.embed_query(query)
+        
+        logging.info("Query embedding complete.")
+        return embedding
+    except Exception as e:
+        logging.error(f"Error embedding query: {e}")
         raise e
