@@ -1,4 +1,5 @@
 from zenml import pipeline
+import logging
 
 from steps.embed_data import embedding_query
 from steps.search_embedding import search_embedding
@@ -14,4 +15,5 @@ def test_database_pipeline(query: str):
     query_embedding = embedding_query(query=query)
     query_embedding_search = search_embedding(query_embedding=query_embedding)
     res = response(matching_chunks=query_embedding_search, query=query)
-    print(res)
+    logging.info(f"Response: {res}")
+    return res

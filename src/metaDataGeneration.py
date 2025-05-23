@@ -49,52 +49,71 @@ class GeminiMetaDataCreation(MetaDataGeneration):
             genai.configure(api_key=os.getenv('GEMINI_API_KEY'))
 
             # Generate metadata for each table
+            output_format = """
+                {{
+                "table_name": "string",
+                "schema_description": "string",
+                "columns": [
+                    {{
+                    "name": "string",
+                    "type": "string",
+                    "description": "string"
+                    }}
+                ],
+                "embedding_text": "string"
+                }}
+                """
+            example = """
+                    {
+                        "table_name": "users",
+                        "schema_description": "A table to store user details including identity, name, contact, and creation timestamp.",
+                        "columns": [
+                            {
+                            "name": "id",
+                            "type": "INTEGER",
+                            "description": "Unique identifier for each user."
+                            },
+                            {
+                            "name": "name",
+                            "type": "VARCHAR(100)",
+                            "description": "Full name of the user."
+                            },
+                            {
+                            "name": "email",
+                            "type": "VARCHAR(100)",
+                            "description": "Optional email address of the user."
+                            },
+                            {
+                            "name": "created_at",
+                            "type": "TIMESTAMP",
+                            "description": "Timestamp when the user record was created."
+                            }
+                        ],
+                        "embedding_text": "The 'users' table contains user details including an ID, full name, optional email address, and a creation timestamp."
+                        }
+                """
+            restrictions = """
+            1. "```json\n{\n  \"table_name\": \"employees\",\n  \"schema_description\": \"This table stores information about employees, including their ID, name, salary, and bonus.\",\n  \"columns\": [\n    {\n      \"name\": \"employee_id\",\n      \"type\": \"int\",\n      \"description\": \"Unique identifier for each employee.\"\n    },\n    {\n      \"name\": \"name\",\n      \"type\": \"varchar(100)\",\n      \"description\": \"Employee's name.\"\n    },\n    {\n      \"name\": \"salary\",\n      \"type\": \"decimal(10,2)\",\n      \"description\": \"Employee's salary.\"\n    },\n    {\n      \"name\": \"bonus\",\n      \"type\": \"decimal(10,2)\",\n      \"description\": \"Employee's bonus.\"\n    }\n  ],\n  \"embedding_text\": \"The 'employees' table stores employee data, including a unique employee ID, employee name, salary, and bonus amount.\"\n}\n```\n"
+            2. "```json\n{\n  \"table_name\": \"products\",\n  \"schema_description\": \"This table contains product information, including product ID, name, price, and stock quantity.\",\n  \"columns\": [\n    {\n      \"name\": \"product_id\",\n      \"type\": \"int\",\n      \"description\": \"Unique identifier for each product.\"\n    },\n    {\n      \"name\": \"product_name\",\n      \"type\": \"varchar(100)\",\n      \"description\": \"Name of the product.\"\n    },\n    {\n      \"name\": \"price\",\n      \"type\": \"decimal(10,2)\",\n      \"description\": \"Price of the product.\"\n    },\n    {\n      \"name\": \"stock_quantity\",\n      \"type\": \"int\",\n      \"description\": \"Available stock quantity of the product.\"\n    }\n  ],\n  \"embedding_text\": \"The 'products' table contains product details, including a unique product ID, product name, price, and available stock quantity.\"\n}\n```\n" 
+
+
+            Inshort, the output should be a JSON object with the following structure:
+            {
+                "table_name": "string",
+                "schema_description": "string",
+                "columns": [
+                    {
+                    "name": "string",
+                    "type": "string",
+                    "description": "string"
+                    }
+                ],
+                "embedding_text": "string"
+            }       
+            """
             metadata = {}
             for table in self.tables:
                 schema = self.schemas.get(table, {})
-                output_format = """
-                    {{
-                    "table_name": "string",
-                    "schema_description": "string",
-                    "columns": [
-                        {{
-                        "name": "string",
-                        "type": "string",
-                        "description": "string"
-                        }}
-                    ],
-                    "embedding_text": "string"
-                    }}
-                    """
-                example = """
-                        {
-                            "table_name": "users",
-                            "schema_description": "A table to store user details including identity, name, contact, and creation timestamp.",
-                            "columns": [
-                                {
-                                "name": "id",
-                                "type": "INTEGER",
-                                "description": "Unique identifier for each user."
-                                },
-                                {
-                                "name": "name",
-                                "type": "VARCHAR(100)",
-                                "description": "Full name of the user."
-                                },
-                                {
-                                "name": "email",
-                                "type": "VARCHAR(100)",
-                                "description": "Optional email address of the user."
-                                },
-                                {
-                                "name": "created_at",
-                                "type": "TIMESTAMP",
-                                "description": "Timestamp when the user record was created."
-                                }
-                            ],
-                            "embedding_text": "The 'users' table contains user details including an ID, full name, optional email address, and a creation timestamp."
-                            }
-                    """
                 prompt = f"""
                     [INSTRUCTION]
                     You are a database schema metadata generator. Based on the provided schema definition, generate a JSON object that includes structured metadata and a natural-language description of the table.
@@ -116,6 +135,9 @@ class GeminiMetaDataCreation(MetaDataGeneration):
 
                     [OUTPUT FORMAT]
                     {output_format}
+
+                    [RESTRICTIONS]
+                    {restrictions}
 
                     [EXAMPLE]
                     {example}

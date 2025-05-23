@@ -46,5 +46,4 @@ class GeminiResponse(Response):
         llm = genai.GenerativeModel('gemini-1.5-flash')
         logging.info("Generating response...")
         response = llm.generate_content(input_prompt)
-
         return response.text
