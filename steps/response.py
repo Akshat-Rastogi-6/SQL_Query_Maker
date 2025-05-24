@@ -6,7 +6,7 @@ from zenml import step
 from src.data_response import Response, GeminiResponse
 
 @step
-def response(matching_chunks: List[str], query: str) -> str:
+def response(matching_chunks: List[str], include_tables:List[str], query: str) -> str:
     try:
         logging.info("Preparing response...")
         
@@ -16,12 +16,14 @@ def response(matching_chunks: List[str], query: str) -> str:
             os.makedirs(chunk_dir)
         
         # Debug: log which files we're looking for
-        for table_name in matching_chunks:
+        final_chunk = matching_chunks + include_tables
+        logging.info(f"Final chunks to process: {final_chunk}")
+        for table_name in final_chunk:
             logging.info(f"Looking for table JSON: {table_name}.json")
         
         # Load the actual table metadata from files
         content_chunks = []
-        for table_name in matching_chunks:
+        for table_name in final_chunk:
             try:
                 # Load the JSON file for this table
                 json_path = os.path.join(os.getcwd(), "data", "chunk", f"{table_name}.json")
