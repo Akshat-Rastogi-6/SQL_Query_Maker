@@ -26,7 +26,7 @@ class IngestData:
             logging.error(f"Error connecting to MySQL: {e}")
             return None
         
-    def fetch_tables(self, connection: pymysql.connections.Connection) -> list:
+    def fetch_tables(self, connection: pymysql.connections.Connection, database_name:str) -> list:
         """Fetches the list of tables in the database.
         Args:
             connection (pymysql.connections.Connection): The database connection object.
@@ -39,7 +39,8 @@ class IngestData:
                 return None
             cursor = connection.cursor()
             cursor.execute("SHOW TABLES")
-            tables = [table['Tables_in_practice'] for table in cursor.fetchall()]
+            dfb_key = f'Tables_in_{database_name}'
+            tables = [table[dfb_key] for table in cursor.fetchall()]
             cursor.close()
             return tables
         except pymysql.MySQLError as e:

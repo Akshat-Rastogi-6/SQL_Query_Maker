@@ -32,7 +32,7 @@ def connectTheDatabase(
             
         # Get data directly in this step
         logging.info("Fetching tables from the database...")
-        tables = db_connection.fetch_tables(connection)
+        tables = db_connection.fetch_tables(connection, database_name)
         if tables is None:
             logging.error("Failed to fetch tables.")
             return {"tables": [], "schemas": {}}

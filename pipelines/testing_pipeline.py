@@ -5,7 +5,7 @@ from steps.embed_data import embedding_query
 from steps.search_embedding import search_embedding
 from steps.response import response
 
-@pipeline
+@pipeline(enable_cache=False)
 def test_database_pipeline(query: str):
     """
     Test pipeline to validate the functionality of the training pipeline.

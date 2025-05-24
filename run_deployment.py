@@ -4,7 +4,7 @@ from pipelines.testing_pipeline import test_database_pipeline
 import io
 import sys
 from contextlib import redirect_stdout
-from pipelines.training_pipeline import train_database_pipeline  # Import the pipeline
+from pipelines.training_pipeline import train_database_pipeline
 from datetime import datetime
 import pandas as pd
 
@@ -60,7 +60,17 @@ if 'authenticated' in st.session_state and st.session_state.authenticated:
             # Close previous connection
             if 'db_connection' in st.session_state:
                 st.session_state.db_connection.close()
-                
+            
+            # Clear previous database information
+            if 'current_db' in st.session_state:
+                # Only clear if changing to a different database
+                if st.session_state.current_db != selected_db:
+                    # Clean up previous database information
+                    if 'tables' in st.session_state:
+                        del st.session_state.tables
+                    if 'selected_tables' in st.session_state:
+                        del st.session_state.selected_tables
+            
             # Connect to the selected database
             db_connection = pymysql.connect(
                 host=host,
@@ -75,6 +85,7 @@ if 'authenticated' in st.session_state and st.session_state.authenticated:
             st.session_state.current_db = selected_db
             
             st.sidebar.success(f"Connected to database: {selected_db}")
+            # st.experimental_rerun()  # Rerun to clear any displayed information from previous DB
             
         except Exception as e:
             st.sidebar.error(f"Failed to connect to database: {str(e)}")
@@ -109,13 +120,18 @@ if 'authenticated' in st.session_state and st.session_state.authenticated:
             # Use multiselect instead of buttons for table selection
             selected_tables = st.multiselect(
                 "Select tables to include in your query context:",
-                options=st.session_state.tables
+                options=st.session_state.tables,
+                default=[] # Always start with empty selection for consistent behavior
             )
             
             # Store selected tables in session state
             if selected_tables:
                 st.session_state.selected_tables = selected_tables
                 st.success(f"Selected {len(selected_tables)} tables")
+            else:
+                # Clear selected_tables if user deselects all tables
+                if 'selected_tables' in st.session_state:
+                    del st.session_state.selected_tables
             
             # Query input section
             st.header("Query Assistant")
@@ -195,8 +211,8 @@ if 'authenticated' in st.session_state and st.session_state.authenticated:
                                         st.write(response_text)
                                 else:
                                     st.write(response_text)
-                            except:
-                                st.error("Could not read response file")
+                            except Exception as file_error:
+                                st.error(f"Could not read response file: {str(file_error)}")
                         except Exception as e:
                             st.error(f"Error processing query: {str(e)}")
                 else:
