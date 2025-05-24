@@ -2,6 +2,7 @@ import streamlit as st
 import pymysql
 from pipelines.testing_pipeline import test_database_pipeline
 from pipelines.training_pipeline import train_database_pipeline
+from src.data_response import GeminiResponse
 import pandas as pd
 
 # --- Database Connection Functions ---
@@ -158,7 +159,7 @@ def process_query(user_query, tables_selctecd, include_relationships=True):
     with st.spinner("Processing your query..."):
         try:
             # Run the pipeline with the enhanced query
-            result = test_database_pipeline(query=context_query, include_tables=tables_selctecd),                             
+            result = test_database_pipeline(query=context_query, include_tables=tables_selctecd)                             
             # After running the pipeline
             try:
                 with open("data/chunk/response.txt", "r") as f:
@@ -177,6 +178,9 @@ def display_response(response_text):
     """
     if not response_text:
         return
+    
+    # Save response text to session state so it persists across reruns
+    st.session_state.current_response_text = response_text
         
     st.subheader("SQL Query Assistant Response")
     
@@ -187,14 +191,19 @@ def display_response(response_text):
             explanation = parts[0]
             sql_code = parts[1].split("```")[0].strip()
             
+            # Save SQL code to session state
+            st.session_state.current_sql_code = sql_code
+            
             # Show explanation
             st.write(explanation)
             
             # Show SQL code in a highlighted code block
             st.code(sql_code, language="sql")
             
-            # Add SQL execution button
-            if st.button("Execute SQL Query"):
+            # Add SQL execution button with a unique key
+            if st.button("Execute SQL Query", key="execute_sql_button") or st.session_state.get('sql_executed', False):
+                # Save flag that we've executed SQL (persists across reruns)
+                st.session_state.sql_executed = True
                 execute_sql(sql_code)
             
             # Show any additional explanation
@@ -210,42 +219,100 @@ def execute_sql(sql_code):
     Execute the generated SQL query and display results
     """
     try:
-        with st.spinner("Executing query..."):
-            # Execute the query
-            with st.session_state.db_connection.cursor() as cursor:
-                cursor.execute(sql_code)
-                
-                # Check if this is a SELECT query
-                if sql_code.strip().upper().startswith("SELECT"):
-                    # Fetch and display results
-                    results = cursor.fetchall()
-                    if results:
-                        col_names = [desc[0] for desc in cursor.description]
-                        results_df = pd.DataFrame(results, columns=col_names)
-                        st.subheader("Query Results")
-                        st.dataframe(results_df)
-                        st.success(f"Query executed successfully. {len(results)} rows returned.")
-                        
-                        # Download option
-                        csv = results_df.to_csv(index=False)
-                        st.download_button(
-                            "Download results as CSV",
-                            data=csv,
-                            file_name="query_results.csv",
-                            mime="text/csv"
-                        )
-                    else:
-                        st.info("Query executed successfully, but no results were returned.")
-                else:
-                    # For non-SELECT queries (INSERT, UPDATE, DELETE)
-                    rowcount = cursor.rowcount
-                    st.success(f"Query executed successfully. {rowcount} rows affected.")
+        # First check if we already have results in session state to avoid re-executing
+        if 'sql_results' not in st.session_state or st.session_state.get('current_sql') != sql_code:
+            with st.spinner("Executing query..."):
+                # Check for empty or dangerous queries
+                if not sql_code or "DROP " in sql_code.upper() and not st.session_state.get("allow_dangerous", False):
+                    st.warning("Potentially dangerous query detected. Add a safety confirmation checkbox if you really need this.")
+                    return
                     
-                    # Commit changes for non-SELECT queries
-                    st.session_state.db_connection.commit()
+                # Execute the query
+                with st.session_state.db_connection.cursor() as cursor:
+                    cursor.execute(sql_code)
+                    
+                    # Better detection of query type
+                    query_type = sql_code.strip().upper()
+                    is_select = query_type.startswith("SELECT") or "SELECT" in query_type and not any(
+                        word in query_type for word in ["UPDATE", "INSERT", "DELETE", "DROP", "CREATE", "ALTER"]
+                    )
+                    
+                    # Store the execution state
+                    st.session_state.current_sql = sql_code
+                    
+                    if is_select:
+                        # Fetch results
+                        results = cursor.fetchall()
+                        if results:
+                            col_names = [desc[0] for desc in cursor.description]
+                            results_df = pd.DataFrame(results, columns=col_names)
+                            
+                            # Store in session state
+                            st.session_state.sql_results = {
+                                "is_select": True,
+                                "dataframe": results_df,
+                                "sql": sql_code,
+                                "row_count": len(results),
+                                "col_names": col_names
+                            }
+                        else:
+                            st.session_state.sql_results = {
+                                "is_select": True,
+                                "dataframe": None,
+                                "sql": sql_code,
+                                "row_count": 0
+                            }
+                    else:
+                        # For non-SELECT queries
+                        rowcount = cursor.rowcount
+                        st.session_state.db_connection.commit()
+                        st.session_state.sql_results = {
+                            "is_select": False,
+                            "dataframe": None,
+                            "sql": sql_code,
+                            "row_count": rowcount,
+                            "type": "modification"
+                        }
+        
+        # Now display the results (either fresh or from session state)
+        results_data = st.session_state.sql_results
+        
+        if results_data["is_select"]:
+            if results_data.get("dataframe") is not None:
+                results_df = results_data["dataframe"]
+                
+                # Display results in an expander
+                with st.expander("Query Results", expanded=True):
+                    st.success(f"Query executed successfully. {results_data['row_count']} rows returned.")
+                    
+                    # Handle large result sets
+                    if results_data['row_count'] > 1000:
+                        st.warning(f"Large result set ({results_data['row_count']} rows). Showing first 1000 rows.")
+                        st.dataframe(results_df.head(1000))
+                    else:
+                        st.dataframe(results_df)
+                
+            else:
+                st.info("Query executed successfully, but no results were returned.")
+        else:
+            # For non-SELECT queries (INSERT, UPDATE, DELETE)
+            with st.expander("Query Results", expanded=True):
+                st.success(f"Query executed successfully. {results_data['row_count']} rows affected.")
+                
     except Exception as exec_error:
         st.error(f"Error executing query: {str(exec_error)}")
-        st.session_state.db_connection.rollback()  # Rollback on error
+        
+        # Show detailed error information
+        if "access denied" in str(exec_error).lower():
+            st.error("You don't have permission to run this query. Contact your database administrator.")
+        elif "syntax error" in str(exec_error).lower():
+            st.error("The query contains a syntax error. Please check your SQL syntax.")
+            
+        # Rollback on error
+        try:
+            st.session_state.db_connection.rollback()
+        except:
+            st.error("Additionally, there was an issue rolling back the transaction.")
 
 # --- UI Layout Functions ---
 
@@ -292,7 +359,7 @@ def build_main_content():
         if 'tables' in st.session_state:
             # Table selection section
             st.header("Database Tables 💻")
-            tables_selctecd = display_table_selection()
+            tables_selected = display_table_selection()
             
             # Query section
             st.header("Query Assistant")
@@ -301,19 +368,25 @@ def build_main_content():
             # Query input
             user_query = st.text_area(
                 "Enter your query about the database or ask for SQL help:",
-                height=150
+                height=150,
+                key="query_input"
             )
             
             # Options
             include_relationships = st.checkbox("Detect and include table relationships", value=True)
             
             # Submit button
-            if st.button("Submit Query"):
+            if st.button("Submit Query", key="submit_query_button"):
                 if user_query:
-                    response = process_query(user_query, tables_selctecd, include_relationships)
+                    response = process_query(user_query, tables_selected, include_relationships)
                     display_response(response)
                 else:
                     st.warning("Please enter a query before submitting.")
+            
+            # Important: Check if there's a previous response to display
+            elif 'current_response_text' in st.session_state:
+                # This ensures the response stays visible after executing SQL
+                display_response(st.session_state.current_response_text)
 
 # --- Main App ---
 
