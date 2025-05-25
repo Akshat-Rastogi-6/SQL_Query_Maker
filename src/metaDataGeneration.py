@@ -143,8 +143,31 @@ class GeminiMetaDataCreation(MetaDataGeneration):
                     {example}
 
                 """
-                llm = genai.GenerativeModel('gemini-1.5-flash')
-                response = llm.generate_content(prompt)
+                try:
+                    llm = genai.GenerativeModel('gemini-1.5-flash')
+                    response = llm.generate_content(prompt)
+                except Exception as e:
+                    logging.warning(f"API error occurred with primary key: {e}")
+                    
+                    # Try backup API keys
+                    success = False
+                    for i in range(2, 6):  # Try API keys 2 through 5
+                        try:
+                            # Reconfigure with next backup API key
+                            logging.info(f"Attempting to use backup API key {i}")
+                            genai.configure(api_key=os.getenv(f'GEMINI_API_KEY{i}'))
+                            llm = genai.GenerativeModel('gemini-1.5-flash')
+                            response = llm.generate_content(prompt)
+                            logging.info(f"Successfully used backup API key {i}")
+                            success = True
+                            break
+                        except Exception as backup_error:
+                            logging.warning(f"Failed with API key {i}: {backup_error}")
+                    
+                    if not success:
+                        logging.error("All API keys failed")
+                        raise Exception("All Gemini API keys failed")
+                    
                 metadata[table] = response.text
 
                 try:

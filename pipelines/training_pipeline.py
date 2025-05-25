@@ -3,7 +3,7 @@ from steps.databaseConnect import connectTheDatabase
 from steps.process_data import process_data
 from steps.embed_data import embed_data
 
-@pipeline(enable_cache=False)
+@pipeline(enable_cache=True)
 def train_database_pipeline(
     password: str,
     database_name: str,
