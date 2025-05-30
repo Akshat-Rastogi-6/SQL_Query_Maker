@@ -65,6 +65,7 @@ jupyter_client==8.6.3
 jupyter_core==5.7.2
 jupyterlab_widgets==3.0.15
 langchain==0.3.21
+langchain-google-genai
 langchain-community==0.3.20
 langchain-core==0.3.46
 langchain-text-splitters==0.3.7
