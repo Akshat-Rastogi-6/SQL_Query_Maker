@@ -152,5 +152,5 @@ wcwidth==0.2.13
 websockets==15.0.1
 widgetsnbextension==4.0.14
 yarl==1.18.3
-zenml==0.83.0
+zenml==0.75.1
 zstandard==0.23.0
